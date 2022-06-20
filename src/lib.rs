@@ -5,6 +5,21 @@ use rand_distr::StandardNormal;
 use std::f64::consts::PI;
 use na::{Complex, ComplexField};
 
+pub fn hilbert_schmidt_distance(sigma: &na::Matrix4<Complex<f64>>, rho: &na::Matrix4<Complex<f64>>) -> f64 {
+    ( (sigma-rho).adjoint() * (sigma-rho) ).trace().abs()
+}
+
+pub fn trace_distance_herm(sigma: &na::Matrix4<Complex<f64>>, rho: &na::Matrix4<Complex<f64>>) -> f64 {
+    let phi = sigma-rho;
+    let phi_sqr = phi.adjoint() * phi;
+    if (phi_sqr).trace() == Complex::new(0.0, 0.0) {
+        return 0.0;
+    }
+    let eigs = (phi_sqr).eigenvalues().unwrap();
+    let eigs_sqrt = eigs.map(|x| ComplexField::abs(x).sqrt());
+    eigs_sqrt.sum()
+}
+
 pub fn random_pos_sphere(rng: &mut ThreadRng) -> (f64, f64) {
     let phi: f64 = Uniform::new_inclusive(0.0, 2.0*PI).sample(rng);
     let costheta: f64 = Uniform::new_inclusive(-1.0, 1.0).sample(rng);
@@ -54,16 +69,34 @@ pub fn bipartite_zero_discord(rng: &mut ThreadRng) -> na::Matrix4<Complex<f64>> 
     chi
 }
 
-pub fn geometric_discord(rho_AB: &na::Matrix4<Complex<f64>>, n_times: usize) -> f64 {
+pub fn geometric_discord(rho_ab: &na::Matrix4<Complex<f64>>, n_times: usize) -> f64 {
     let mut rng = rand::thread_rng();
-    let mut discords: Vec<f64> = Vec::new();
-    for i in 0..=n_times {
+    let mut distances: Vec<f64> = Vec::new();
+    for _i in 0..=n_times {
         let chi = bipartite_zero_discord(&mut rng);
-        let disc = ( (rho_AB-chi).adjoint() * (rho_AB-chi) ).trace();
-        discords.push(disc.abs());
+        let distance = hilbert_schmidt_distance(rho_ab, &chi);
+        distances.push(distance);
+        if distance == 0.0 {
+            break;
+        }
     }
-    discords.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    discords.first().unwrap().clone()
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    distances.first().unwrap().clone()
+}
+
+pub fn trace_distance_discord(rho_ab: &na::Matrix4<Complex<f64>>, n_times: usize) -> f64 {
+    let mut rng = rand::thread_rng();
+    let mut distances: Vec<f64> = Vec::new();
+    for _i in 0..=n_times {
+        let chi = bipartite_zero_discord(&mut rng);
+        let distance = trace_distance_herm(rho_ab, &chi);
+        distances.push(distance);
+        if distance == 0.0 {
+            break;
+        }
+    }
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    0.5 * distances.first().unwrap().clone()
 }
 
 pub fn werner_state(lmda: f64) -> na::Matrix4<Complex<f64>> {
