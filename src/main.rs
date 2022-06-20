@@ -7,7 +7,7 @@ fn plot_wernerstates_discord() -> Result<(), Box<dyn std::error::Error>> {
     root.fill(&WHITE);
     let root = root.margin(1, 0, 0, 1);
     let mut chart = ChartBuilder::on(&root)
-        .caption("Geometric (Red) and Trace Distance (Blue) Discord for Werner States as a function of λ", ("sans-serif", 20).into_font())
+        .caption("Geometric (Red) and Trace Distance (Blue) Discord for Werner States as a function of λ", ("sans-serif", 18).into_font())
         .x_label_area_size(20)
         .y_label_area_size(40)
         .build_cartesian_2d(0f32..1f32, 0f32..1f32)?;
@@ -25,7 +25,7 @@ fn plot_wernerstates_discord() -> Result<(), Box<dyn std::error::Error>> {
     while lmda <= 1.01 {
         println!("Computing for λ = {}", &lmda);
         let w_l = qcorr::werner_state(lmda);
-        let discord = qcorr::geometric_discord(&w_l, 1000000) as f32;
+        let discord = qcorr::geometric_discord(&w_l, 4000000) as f32;
         discords.push((lmda as f32, discord));
         println!("{}", discord);
         lmda += 0.05;
@@ -40,7 +40,7 @@ fn plot_wernerstates_discord() -> Result<(), Box<dyn std::error::Error>> {
     while lmda <= 1.01 {
         println!("Computing for λ = {}", &lmda);
         let w_l = qcorr::werner_state(lmda);
-        let discord = qcorr::trace_distance_discord(&w_l, 20000000) as f32;
+        let discord = qcorr::trace_distance_discord_parallel(&w_l, 25000000, 4) as f32;
         tdds.push((lmda as f32, discord));
         println!("{}", discord);
         lmda += 0.1;

@@ -3,6 +3,8 @@ use rand::prelude::*;
 use rand::distributions::{Distribution, Uniform};
 use rand_distr::StandardNormal;
 use std::f64::consts::PI;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use na::{Complex, ComplexField};
 
 pub fn hilbert_schmidt_distance(sigma: &na::Matrix4<Complex<f64>>, rho: &na::Matrix4<Complex<f64>>) -> f64 {
@@ -95,6 +97,37 @@ pub fn trace_distance_discord(rho_ab: &na::Matrix4<Complex<f64>>, n_times: usize
             break;
         }
     }
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    0.5 * distances.first().unwrap().clone()
+}
+
+pub fn trace_distance_discord_parallel(rho_ab: &na::Matrix4<Complex<f64>>, n_times: usize, n_threads: u8) -> f64 {
+    let rho_ab_in = rho_ab.clone();
+    let distances_vec: Vec<f64> = Vec::new();
+    let distances_arc = Arc::new(Mutex::new(distances_vec));
+    let mut handles = vec![];
+    for _ in 0..n_threads {
+        let rho_ab_clone = rho_ab_in.clone();
+        let distances_ref = Arc::clone(&distances_arc);
+        let handle = thread::spawn(move || {
+            let mut rng = rand::thread_rng();
+            loop {
+                let chi = bipartite_zero_discord(&mut rng);
+                let distance = trace_distance_herm(&rho_ab_clone, &chi);
+                let mut distances = distances_ref.lock().unwrap();
+                if distances.len() < n_times {
+                    distances.push(distance);
+                    if distance == 0.0 {break;}
+                }
+                else {break;}
+                }
+            });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    let mut distances = distances_arc.lock().unwrap();
     distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
     0.5 * distances.first().unwrap().clone()
 }
