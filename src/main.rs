@@ -1,6 +1,7 @@
 extern crate plotters;
 use plotters::prelude::*;
 use qcorrelations as qcorr;
+use qcorrelations::{QCorrelation, DiscordMeasure};
 
 fn plot_wernerstates_discord() -> Result<(), Box<dyn std::error::Error>> {
     let root = BitMapBackend::new("output/wernerstates_gdiscord.png", (640, 480)).into_drawing_area();
@@ -25,7 +26,7 @@ fn plot_wernerstates_discord() -> Result<(), Box<dyn std::error::Error>> {
     while lmda <= 1.01 {
         println!("Computing for λ = {}", &lmda);
         let w_l = qcorr::werner_state(lmda);
-        let discord = qcorr::geometric_discord(&w_l, 4000000) as f32;
+        let discord = qcorr::correlation_measure_parallel(&w_l, QCorrelation::Discord(DiscordMeasure::GometricDiscord), 10000000, 4).unwrap() as f32;
         discords.push((lmda as f32, discord));
         println!("{}", discord);
         lmda += 0.05;
@@ -40,7 +41,7 @@ fn plot_wernerstates_discord() -> Result<(), Box<dyn std::error::Error>> {
     while lmda <= 1.01 {
         println!("Computing for λ = {}", &lmda);
         let w_l = qcorr::werner_state(lmda);
-        let discord = qcorr::trace_distance_discord_parallel(&w_l, 25000000, 4) as f32;
+        let discord = qcorr::correlation_measure_parallel(&w_l, QCorrelation::Discord(DiscordMeasure::TraceDistanceDiscord), 50000000, 4).unwrap() as f32;
         tdds.push((lmda as f32, discord));
         println!("{}", discord);
         lmda += 0.1;

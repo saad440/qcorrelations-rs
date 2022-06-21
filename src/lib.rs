@@ -7,6 +7,30 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use na::{Complex, ComplexField};
 
+
+#[derive(Copy, Clone)]
+pub enum EntanglementMeasure {
+    EntropyOfEntanglement,
+}
+
+#[derive(Copy, Clone)]
+pub enum DiscordMeasure {
+    GometricDiscord,
+    TraceDistanceDiscord,
+}
+
+#[derive(Copy, Clone)]
+pub enum QCorrelation {
+    Entanglement(EntanglementMeasure),
+    Discord(DiscordMeasure),
+}
+
+#[derive(Copy, Clone)]
+pub enum DistanceMetric {
+    HilbertSchmidtDistance,
+    TraceDistance,
+}
+
 pub fn hilbert_schmidt_distance(sigma: &na::Matrix4<Complex<f64>>, rho: &na::Matrix4<Complex<f64>>) -> f64 {
     ( (sigma-rho).adjoint() * (sigma-rho) ).trace().abs()
 }
@@ -20,6 +44,14 @@ pub fn trace_distance_herm(sigma: &na::Matrix4<Complex<f64>>, rho: &na::Matrix4<
     let eigs = (phi_sqr).eigenvalues().unwrap();
     let eigs_sqrt = eigs.map(|x| ComplexField::abs(x).sqrt());
     eigs_sqrt.sum()
+}
+
+pub fn matrix_distance(sigma: &na::Matrix4<Complex<f64>>, rho: &na::Matrix4<Complex<f64>>, distance_type: DistanceMetric) -> f64 {
+    let distance: f64 = match distance_type {
+        DistanceMetric::HilbertSchmidtDistance => hilbert_schmidt_distance(sigma, rho),
+        DistanceMetric::TraceDistance => trace_distance_herm(sigma, rho),
+    };
+    distance
 }
 
 pub fn random_pos_sphere(rng: &mut ThreadRng) -> (f64, f64) {
@@ -130,6 +162,59 @@ pub fn trace_distance_discord_parallel(rho_ab: &na::Matrix4<Complex<f64>>, n_tim
     let mut distances = distances_arc.lock().unwrap();
     distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
     0.5 * distances.first().unwrap().clone()
+}
+
+pub fn correlation_measure_parallel(rho_ab: &na::Matrix4<Complex<f64>>, corr_type: QCorrelation, n_times: usize, n_threads: u8) -> Result<f64, &str> {
+    let rho_ab_in = rho_ab.clone();
+    let distances_vec: Vec<f64> = Vec::new();
+    let distances_arc = Arc::new(Mutex::new(distances_vec));
+    let mut handles = vec![];
+    for _ in 0..n_threads {
+        let rho_ab_clone = rho_ab_in.clone();
+        let distances_ref = Arc::clone(&distances_arc);
+        let handle = thread::spawn(move || {
+            let mut rng = rand::thread_rng();
+            let mult_factor: f64 = match corr_type {
+                QCorrelation::Discord(discord_measure) => match discord_measure {
+                    DiscordMeasure::GometricDiscord => loop {
+                        let chi = bipartite_zero_discord(&mut rng);
+                        let distance = hilbert_schmidt_distance(&rho_ab_clone, &chi);
+                        let mut distances = distances_ref.lock().unwrap();
+                        if distances.len() < n_times {
+                            distances.push(distance);
+                            if distance == 0.0 {break 1.0}
+                        }
+                        else {break 1.0}
+                        },
+                    DiscordMeasure::TraceDistanceDiscord => loop {
+                        let chi = bipartite_zero_discord(&mut rng);
+                        let distance = trace_distance_herm(&rho_ab_clone, &chi);
+                        let mut distances = distances_ref.lock().unwrap();
+                        if distances.len() < n_times {
+                            distances.push(distance);
+                            if distance == 0.0 {break 0.5}
+                        }
+                        else {break 0.5}
+                        },
+                },
+                QCorrelation::Entanglement(entg_measure) => match entg_measure {
+                    EntanglementMeasure::EntropyOfEntanglement => 0.0,
+                }
+            };
+            mult_factor
+            });
+        handles.push(handle);
+    }
+    let mut mult_factor: f64 = 1.0;
+    for handle in handles {
+        mult_factor = handle.join().unwrap();
+    }
+    let mut distances = distances_arc.lock().unwrap();
+    if distances.len() == 0 {
+        return Err("Not Implemented");
+    }
+    distances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    Ok(mult_factor * distances.first().unwrap().clone())
 }
 
 pub fn werner_state(lmda: f64) -> na::Matrix4<Complex<f64>> {
