@@ -456,6 +456,29 @@ pub fn correlation_measure_parallel(rho_ab: &na::Matrix4<Complex<f64>>, corr_typ
     Ok(mult_factor * minimum_distance.deref())
 }
 
+pub fn pauli_matrix(i: usize) -> Result<na::Matrix2<Complex<f64>>,&'static str> {
+    /* Return the Pauli matrix σ_i for a given i */
+    let pauli_i = match i {
+        1 => Ok(na::Matrix2::new(
+            na::Complex{re:0.0,im:0.0}, na::Complex{re:1.0,im:0.0},
+            na::Complex{re:1.0,im:0.0}, na::Complex{re:0.0,im:0.0},
+            )
+        ),
+        2 => Ok(na::Matrix2::new(
+            na::Complex{re:0.0,im:0.0}, na::Complex{re:0.0,im:-1.0},
+            na::Complex{re:0.0,im:1.0}, na::Complex{re:0.0,im:0.0},
+            )
+        ),
+        3 => Ok(na::Matrix2::new(
+            na::Complex{re:1.0,im:0.0}, na::Complex{re:0.0,im:0.0},
+            na::Complex{re:0.0,im:0.0}, na::Complex{re:-1.0,im:0.0},
+            )
+        ),
+        _ => Err("Invalid value of i"),
+    };
+    pauli_i
+}
+
 pub fn werner_state(lmda: f64) -> na::Matrix4<Complex<f64>> {
     /* Generate Werner state W(λ) for the given value of parameter λ */
     let eye4 = na::Matrix4::<Complex<f64>>::identity();
@@ -467,4 +490,44 @@ pub fn werner_state(lmda: f64) -> na::Matrix4<Complex<f64>> {
         );
     let werner = psi_minus.scale(lmda) + eye4.scale( ( 1.0-lmda)/4.0 );
     werner
+}
+
+pub fn bell_diagonal_bellbasis(coefficients: [f64; 4]) -> na::Matrix4<Complex<f64>> {
+    /* Construct a Bell diagonal state using its form in the Bell-state basis
+       for a given array of coefficients: [ λ_1+, λ_1-, λ_2+, λ_2- ]
+    */
+    let mut bell_diag: na::Matrix4<Complex<f64>> = na::Matrix4::<Complex<f64>>::zeros();
+    let zero = na::Matrix2x1::new(
+        Complex{re:1.0,im:0.0},
+        Complex{re:0.0,im:0.0},
+    );
+    let one = na::Matrix2x1::new(
+        Complex{re:0.0,im:0.0},
+        Complex{re:1.0,im:0.0},
+    );
+    let one_plus = (zero.kronecker(&one)+one.kronecker(&zero)).scale(1.0/(2.0).sqrt());
+    let one_minus = (zero.kronecker(&one)-one.kronecker(&zero)).scale(1.0/(2.0).sqrt());
+    let two_plus = (zero.kronecker(&zero)+one.kronecker(&one)).scale(1.0/(2.0).sqrt());
+    let two_minus = (zero.kronecker(&zero)-one.kronecker(&one)).scale(1.0/(2.0).sqrt());
+    let bases = [ one_plus*one_plus.adjoint(), one_minus*one_minus.adjoint(), two_plus*two_plus.adjoint(), two_minus*two_minus.adjoint()];
+    for (i, coeff) in coefficients.into_iter().enumerate() {
+        bell_diag += bases[i].scale(coeff);
+    }
+    bell_diag
+}
+
+#[allow(non_snake_case)]
+pub fn bell_diagonal_bloch(coefficients: [f64; 3]) -> na::Matrix4<Complex<f64>> {
+    /* Construct a Bell diagonal state using its Bloch-state representation
+       for a given array of coefficients: [ c_1, c_2, c_3 ]
+    */
+    let mut bell_diag: na::Matrix4<Complex<f64>> = na::Matrix4::<Complex<f64>>::zeros();
+    let I_AB = na::Matrix4::<Complex<f64>>::identity();
+    bell_diag += I_AB;
+    for (i, c_i) in coefficients.into_iter().enumerate() {
+        let sigma_i = pauli_matrix(i+1).unwrap();
+        bell_diag += (sigma_i.kronecker(&sigma_i)).scale(c_i);
+    }
+    bell_diag = bell_diag.scale(0.25);
+    bell_diag
 }
