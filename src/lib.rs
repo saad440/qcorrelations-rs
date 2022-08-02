@@ -211,7 +211,7 @@ pub fn random_ginibre_sparse(rng: &mut ThreadRng, n: usize) -> na::DMatrix<Compl
     for i in 0..n {
         for j in 0..n {
             let non_zero: bool = rng.gen();
-            if non_zero || i==j {  // Avoid zero entries on the main diagonal
+            if non_zero {
                 g[(i,j)] = na::Complex::new(rng.sample(StandardNormal), 0.0) + na::Complex::new(0.0, rng.sample(StandardNormal));
             }
             else {
