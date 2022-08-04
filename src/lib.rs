@@ -317,6 +317,17 @@ pub fn random_bipartite_separable(rng: &mut ThreadRng) -> na::Matrix4<Complex<f6
     rho_sep
 }
 
+pub fn random_bipartite_entangled(rng: &mut ThreadRng) -> na::Matrix4<Complex<f64>> {
+    /* Generate a random 2 qubit state containing a random amount of entanglement */
+    let rho_entg = loop {
+        let rho = random_dm_hs(rng, 4).fixed_slice::<4, 4>(0, 0).into();
+        if !peres_horodecki_separable(&rho) {
+            break rho
+        }
+    };
+    rho_entg
+}
+
 pub fn correlation_measure_parallel(rho_ab: &na::Matrix4<Complex<f64>>, corr_type: QCorrelation, n_times: usize, n_threads: u8) -> Result<f64, &str> {
     /* Calculate the value of the correlaton measure given by corr_type.
        n_times density matrices with zero correlations of the corresponding type
